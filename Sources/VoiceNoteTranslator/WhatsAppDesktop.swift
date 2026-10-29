@@ -70,7 +70,7 @@ enum WhatsAppDB {
 
 struct Bubble {
     let label: String      // the bubble's accessibility description
-    let frame: CGRect      // screen coordinates, top-left origin
+    var frame: CGRect      // screen coordinates, top-left origin
     let fromMe: Bool
     let duration: Int      // seconds
     let hour: Int, minute: Int
@@ -80,8 +80,11 @@ struct Bubble {
 
 struct ChatSnapshot {
     let chatName: String
-    let visibleArea: CGRect
-    let bubbles: [Bubble]
+    var visibleArea: CGRect
+    var bubbles: [Bubble]
+    /// Every voice bubble from the last full read, including ones scrolled out
+    /// of view, so they can come back while scrolling without a re-read.
+    var allBubbles: [Bubble]
 }
 
 enum AX {
@@ -97,10 +100,11 @@ enum AX {
         if let v = attr(e, kAXSizeAttribute) { AXValueGetValue(v as! AXValue, .cgSize, &s) }
         return CGRect(origin: p, size: s)
     }
-    static func y(_ e: AXUIElement) -> CGFloat {
-        var p = CGPoint(x: 0, y: -1)
-        if let v = attr(e, kAXPositionAttribute) { AXValueGetValue(v as! AXValue, .cgPoint, &p) }
-        return p.y
+    static func position(_ e: AXUIElement) -> CGPoint? {
+        var p = CGPoint.zero
+        guard let v = attr(e, kAXPositionAttribute) else { return nil }
+        AXValueGetValue(v as! AXValue, .cgPoint, &p)
+        return p
     }
     static func find(_ e: AXUIElement, id: String, depth: Int = 0) -> AXUIElement? {
         if string(e, "AXIdentifier") == id { return e }
@@ -167,7 +171,7 @@ func match(_ b: Bubble, in notes: [VoiceNote]) -> VoiceNote? {
 ///
 /// Every accessibility query is answered by WhatsApp itself, so reading every
 /// message label several times a second made WhatsApp use ~15% more CPU.
-/// Instead, `changed()` checks just the list's row count and first/last row
+/// Instead, `check()` looks at just the list's row count and first/last row
 /// positions (3 queries), and the full read only runs when that check or a
 /// WhatsApp accessibility event says something moved.
 final class WhatsAppReader {
@@ -175,7 +179,6 @@ final class WhatsAppReader {
     private var observer: AXObserver?
     private var header: AXUIElement?
     private var table: AXUIElement?
-    private var signature = ""
     private var lastSearch = Date.distantPast
     private(set) var dirty = true
     private(set) var snapshot: ChatSnapshot?
@@ -228,32 +231,73 @@ final class WhatsAppReader {
         return header != nil && table != nil
     }
 
-    /// The cheap check: has the list scrolled, moved, or gained rows?
-    func changed() -> Bool {
-        if dirty { return true }
-        guard let table else { return true }
-        let rows = AX.children(table)
-        guard let first = rows.first, let last = rows.last else { return true }
-        let sig = "\(rows.count)|\(AX.y(first))|\(AX.y(last))"
-        if sig != signature { signature = sig; return true }
-        return false
+    enum Change: Equatable {
+        case same
+        /// Every row moved by the same amount: a scroll or a window move.
+        case moved(dx: CGFloat, dy: CGFloat)
+        /// Rows appeared, disappeared or moved relative to each other.
+        case changed
     }
 
-    /// The full read: one label per visible row, positions only for voice notes.
+    /// One row from the last full read, followed to measure scrolling, and the
+    /// number of rows then. While it stays the same row, its movement is the
+    /// list's movement.
+    private var anchor: (row: AXUIElement, position: CGPoint)?
+    private var rowCount = 0
+    /// Rows were added or removed since the last full read (e.g. while scrolling).
+    private(set) var rowsChanged = false
+
+    /// The cheap check (2 queries): the row count and the anchor row's position.
+    func check() -> Change {
+        if dirty { return .changed }
+        guard let table, let anchor else { return .changed }
+        var count: CFIndex = 0
+        guard AXUIElementGetAttributeValueCount(table, kAXChildrenAttribute as CFString, &count) == .success,
+              let pos = AX.position(anchor.row) else { return .changed }   // the anchor row is gone
+        if count != rowCount { rowsChanged = true }
+        let d = CGPoint(x: pos.x - anchor.position.x, y: pos.y - anchor.position.y)
+        self.anchor = (anchor.row, pos)
+        if d != .zero { return .moved(dx: d.x, dy: d.y) }
+        return rowsChanged ? .changed : .same
+    }
+
+    /// Moves the last snapshot by a scroll or window-move delta without
+    /// re-reading any labels (1 query, for the list's own frame).
+    func shift(dx: CGFloat, dy: CGFloat) {
+        guard var snap = snapshot, let table else { return }
+        let area = AX.frame(table)
+        snap.visibleArea = area
+        snap.allBubbles = snap.allBubbles.map { var b = $0; b.frame = b.frame.offsetBy(dx: dx, dy: dy); return b }
+        snap.bubbles = snap.allBubbles.filter { Self.isVisible($0.frame, in: area) }
+        snapshot = snap
+    }
+
+    private static func isVisible(_ f: CGRect, in area: CGRect) -> Bool {
+        f.maxY > area.minY + 4 && f.minY < area.maxY - 60
+    }
+
+    /// The full read: one label per row, positions only for voice notes.
     @discardableResult
     func read() -> ChatSnapshot? {
         dirty = false
         guard findElements(), let header, let table else { snapshot = nil; return nil }
         let area = AX.frame(table)
         guard !area.isEmpty else { invalidate(refind: true); snapshot = nil; return nil }
-        var bubbles: [Bubble] = []
-        for row in AX.children(table) {
+        var all: [Bubble] = []
+        let rows = AX.children(table)
+        for row in rows {
             let label = AX.string(row, kAXDescriptionAttribute)
-            guard label.contains("Duration") else { continue }
-            let f = AX.frame(row)
-            if f.maxY > area.minY + 4, f.minY < area.maxY - 60, let b = parseBubble(label: label, frame: f) { bubbles.append(b) }
+            guard label.contains("Duration"), let b = parseBubble(label: label, frame: AX.frame(row)) else { continue }
+            all.append(b)
         }
-        snapshot = ChatSnapshot(chatName: cleanLabel(AX.string(header, kAXDescriptionAttribute)), visibleArea: area, bubbles: bubbles)
+        // Follow a row from the middle of the list: the ones at the edges are
+        // the first to be recycled while scrolling.
+        let mid = rows.isEmpty ? nil : rows[rows.count / 2]
+        anchor = mid.flatMap { r in AX.position(r).map { (r, $0) } }
+        rowCount = rows.count
+        rowsChanged = false
+        snapshot = ChatSnapshot(chatName: cleanLabel(AX.string(header, kAXDescriptionAttribute)), visibleArea: area,
+                                bubbles: all.filter { Self.isVisible($0.frame, in: area) }, allBubbles: all)
         return snapshot
     }
 }

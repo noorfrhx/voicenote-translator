@@ -239,6 +239,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         result.show(sample, at: NSPoint(x: 200, y: 600))
         snapshot(result.panel, to: folder.appendingPathComponent("overlay-result.png"))
         result.panel.orderOut(nil)
+
+        // A very long note near the bottom of the screen must stay fully on screen.
+        let long = Translation(transcript: String(repeating: "Das ist ein sehr langer Satz in einer Sprachnachricht, damit das Fenster scrollen muss. ", count: 40),
+                               text: sample.text, language: "German")
+        let screen = NSScreen.main!.visibleFrame
+        result.show(long, at: NSPoint(x: screen.midX, y: screen.minY + 40))
+        result.toggleOriginal()
+        let f = result.panel.frame
+        print("long popup \(f), on screen: \(screen.contains(f))")
+        snapshot(result.panel, to: folder.appendingPathComponent("overlay-result-long.png"))
+        result.panel.orderOut(nil)
         for (name, state) in [("idle", NoteState.idle), ("busy", .busy), ("done", .done(sample)), ("failed", .failed)] {
             let b = BubbleButton()
             b.show(next: CGRect(x: 100, y: 300, width: 300, height: 70), leftSide: false, state: state)

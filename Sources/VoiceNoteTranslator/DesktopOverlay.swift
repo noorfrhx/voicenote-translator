@@ -27,7 +27,11 @@ final class DesktopOverlay: ObservableObject {
     private init() {}
 
     func start() {
-        result.onClose = { [weak self] in self?.resultKey = nil }
+        result.onClose = { [weak self] in
+            self?.resultKey = nil
+            // The popup had the keyboard; hand it back to WhatsApp.
+            WhatsAppDesktop.runningApp?.activate()
+        }
         let ws = NSWorkspace.shared.notificationCenter
         ws.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { [weak self] n in
             let app = n.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
@@ -63,17 +67,36 @@ final class DesktopOverlay: ObservableObject {
         if let app, app.bundleIdentifier == WhatsAppDesktop.bundleID, AppSettings.shared.desktopButtons, accessibilityTrusted {
             reader.attach(app)
             reader.invalidate()
-            if timer == nil {
-                timer = Timer.scheduledTimer(withTimeInterval: 0.15, repeats: true) { [weak self] _ in
-                    MainActor.assumeIsolated { self?.tick() }
-                }
-                timer?.tolerance = 0.05
-            }
+            setRate(fast: false)
             tick()
         } else if app?.processIdentifier != ProcessInfo.processInfo.processIdentifier {
-            // Keep the result panel up while the person is reading or copying from it.
-            stopRefreshing(hide: NSApp.keyWindow !== result.panel)
+            stopRefreshing(hide: true)
         }
+    }
+
+    // While the chat scrolls or the window moves, follow at 60 fps; otherwise a
+    // cheap check every 0.15s is enough.
+    private static let slowInterval = 0.15
+    private static let fastInterval = 1.0 / 60
+    private var fast = false
+    private var lastMotion = Date.distantPast
+    private var lastRead = Date.distantPast
+    private var settled = true
+
+    private func fullRead(_ now: Date) {
+        reader.read()
+        lastRead = now
+    }
+
+    private func setRate(fast: Bool) {
+        if timer != nil, self.fast == fast { return }
+        self.fast = fast
+        timer?.invalidate()
+        let interval = fast ? Self.fastInterval : Self.slowInterval
+        timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.tick() }
+        }
+        timer?.tolerance = fast ? 0.004 : 0.05
     }
 
     private func stopRefreshing(hide: Bool) {
@@ -89,10 +112,30 @@ final class DesktopOverlay: ObservableObject {
     }
 
     private func tick() {
-        if reader.changed() {
-            reader.read()
+        let now = Date()
+        switch reader.check() {
+        case .same:
+            // Motion just stopped: one accurate read to pick up rows that scrolled into view.
+            if !settled, now.timeIntervalSince(lastMotion) > 0.12 {
+                settled = true
+                fullRead(now)
+                needsRender = true
+            }
+        case .moved(let dx, let dy):
+            // Scroll or window move: shift what's on screen without re-reading
+            // labels. If rows also came or went, re-read, but at most 4 times a
+            // second while moving; one more read follows when motion stops.
+            reader.shift(dx: dx, dy: dy)
+            if reader.rowsChanged, now.timeIntervalSince(lastRead) > 0.25 { fullRead(now) }
             needsRender = true
+            lastMotion = now
+            settled = false
+        case .changed:
+            fullRead(now)
+            needsRender = true
+            settled = true
         }
+        setRate(fast: now.timeIntervalSince(lastMotion) < 0.5)
         if needsRender {
             needsRender = false
             if let snap = reader.snapshot { render(snap) } else { buttons.forEach { $0.panel.orderOut(nil) } }
@@ -184,6 +227,13 @@ final class OverlayPanel: NSPanel {
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
     }
     override var canBecomeKey: Bool { true }
+
+    /// Sees key presses before the text view does, for the popup's shortcuts.
+    var keyHandler: ((NSEvent) -> Bool)?
+    override func sendEvent(_ event: NSEvent) {
+        if event.type == .keyDown, keyHandler?(event) == true { return }
+        super.sendEvent(event)
+    }
 }
 
 let brandGreen = NSColor(srgbRed: 0.12, green: 0.66, blue: 0.33, alpha: 1)
@@ -304,6 +354,11 @@ final class ResultPanel: NSObject {
         let copy = link("Copy", #selector(copyText), x: 12)
         let orig = link("Original", #selector(toggleOriginal), x: 62)
         let close = link("Close", #selector(close), x: 322)
+        copy.toolTip = "Copy (⌘C)"
+        orig.toolTip = "Switch between translation and original (Tab)"
+        close.toolTip = "Close (Esc)"
+        close.autoresizingMask = [.minXMargin]
+        panel.keyHandler = { [weak self] in self?.handleKey($0) ?? false }
         meta.frame = NSRect(x: 130, y: 10, width: 180, height: 16)
         meta.font = .systemFont(ofSize: 11)
         meta.textColor = .secondaryLabelColor
@@ -322,30 +377,60 @@ final class ResultPanel: NSObject {
         return b
     }
 
+    /// Where the popup would like to be: beside the bubble, top edges aligned.
+    /// `fit()` then keeps it on screen.
+    private var anchor: (bubble: NSRect, leftSide: Bool)?
+    private var anchorPoint: NSPoint?
+
     func show(_ t: Translation, next bubble: CGRect, leftSide: Bool) {
         translation = t
         showingOriginal = false
-        render()
-        place(next: bubble, leftSide: leftSide)
-        panel.orderFront(nil)
+        anchor = (cocoaRect(bubble), leftSide)
+        anchorPoint = nil
+        present()
     }
 
     func show(_ t: Translation, at point: NSPoint) {
         translation = t
         showingOriginal = false
+        anchor = nil
+        anchorPoint = point
+        present()
+    }
+
+    private func present() {
         render()
-        panel.setFrameOrigin(NSPoint(x: point.x + 12, y: point.y - panel.frame.height - 12))
-        panel.orderFront(nil)
+        // Take keyboard focus (Esc, ⌘C, Tab) without activating this app, so
+        // WhatsApp stays the front app and gets the keyboard back on close.
+        panel.makeKeyAndOrderFront(nil)
+        panel.makeFirstResponder(text)
     }
 
     func place(next bubble: CGRect, leftSide: Bool) {
-        let b = cocoaRect(bubble)
+        anchor = (cocoaRect(bubble), leftSide)
+        fit()
+    }
+
+    /// The visible area of the screen the popup belongs on.
+    private var screenFrame: NSRect {
+        let probe = anchor?.bubble.center ?? anchorPoint ?? panel.frame.center
+        return (NSScreen.screens.first { $0.frame.contains(probe) } ?? NSScreen.main ?? NSScreen.screens[0]).visibleFrame
+    }
+
+    /// Positions the popup by its anchor and keeps the whole of it on screen.
+    private func fit() {
+        let screen = screenFrame
         let size = panel.frame.size
-        var x = leftSide ? b.minX - size.width - 108 : b.maxX + 108
-        let screen = NSScreen.screens.first { $0.frame.intersects(b) }?.visibleFrame ?? NSScreen.main!.visibleFrame
-        x = min(max(x, screen.minX + 8), screen.maxX - size.width - 8)
-        let y = min(max(b.maxY - size.height, screen.minY + 8), screen.maxY - size.height - 8)
-        let origin = NSPoint(x: x, y: y)
+        var origin: NSPoint
+        if let (b, leftSide) = anchor {
+            origin = NSPoint(x: leftSide ? b.minX - size.width - 44 : b.maxX + 44, y: b.maxY - size.height)
+        } else if let p = anchorPoint {
+            origin = NSPoint(x: p.x + 12, y: p.y - size.height - 12)
+        } else {
+            origin = panel.frame.origin
+        }
+        origin.x = min(max(origin.x, screen.minX + 8), screen.maxX - size.width - 8)
+        origin.y = min(max(origin.y, screen.minY + 8), screen.maxY - size.height - 8)
         if panel.frame.origin != origin { panel.setFrameOrigin(origin) }
     }
 
@@ -355,17 +440,20 @@ final class ResultPanel: NSObject {
         text.textStorage?.setAttributedString(NSAttributedString(
             string: showingOriginal ? t.transcript : t.text,
             attributes: [.font: NSFont.systemFont(ofSize: 13.5), .foregroundColor: NSColor.labelColor]))
-        meta.stringValue = showingOriginal ? "Original transcript" : t.language
-        // Grow to fit the text, within limits.
+        text.scrollToBeginningOfDocument(nil)
+        meta.stringValue = showingOriginal ? (t.language.isEmpty ? "Original" : "Original · \(t.language)") : t.language
+        // Grow to fit the text, but never taller than the screen allows.
         text.layoutManager?.ensureLayout(for: text.textContainer!)
         let used = text.layoutManager?.usedRect(for: text.textContainer!).height ?? 80
-        let h = min(max(used + 52, 90), 420)
+        let maxHeight = min(460, screenFrame.height - 16)
+        let h = min(max(used + 52, 90), maxHeight)
         // Only show a scrollbar when the text is longer than the popup can show.
-        scroll.hasVerticalScroller = used + 52 > 420
+        scroll.hasVerticalScroller = used + 52 > maxHeight
         var f = panel.frame
         f.origin.y += f.height - h
         f.size.height = h
         panel.setFrame(f, display: true)
+        fit()
     }
 
     @objc func copyText() {
@@ -375,4 +463,26 @@ final class ResultPanel: NSObject {
     }
     @objc func toggleOriginal() { showingOriginal.toggle(); render() }
     @objc func close() { panel.orderOut(nil); onClose?() }
+
+    /// Keyboard: Esc or ⌘W closes, ⌘C copies (everything, when nothing is selected), Tab switches to the original.
+    func handleKey(_ event: NSEvent) -> Bool {
+        let cmd = event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command
+        switch (event.keyCode, cmd, event.charactersIgnoringModifiers?.lowercased()) {
+        case (53, _, _), (_, true, "w"):
+            close()
+            return true
+        case (_, true, "c") where text.selectedRange().length == 0:
+            copyText()
+            return true
+        case (48, false, _):
+            toggleOriginal()
+            return true
+        default:
+            return false
+        }
+    }
+}
+
+private extension NSRect {
+    var center: NSPoint { NSPoint(x: midX, y: midY) }
 }
