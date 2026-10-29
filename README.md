@@ -50,6 +50,8 @@ Requires **macOS 14 Sonoma or later** and an API key from [OpenRouter](https://o
 
 3. Open VoiceNote Translator from Applications. A waveform icon appears in the menu bar and Settings opens.
 
+   Opened it straight from the disk image or Downloads? It offers to move itself into Applications and reopens from there. It won't run anywhere else, because browsers and macOS permissions lose track of a copy that isn't in Applications.
+
 > Releases are signed with a Developer ID and notarized by Apple, so they open without warnings. **Built it yourself and see "Apple could not verify…"?** Builds that aren't notarized show this once. Click **Done**, then open System Settings → Privacy & Security, scroll down and click **Open Anyway** next to VoiceNote Translator (on macOS 14 you can also right-click the app → **Open**). Or run `xattr -dr com.apple.quarantine "/Applications/VoiceNote Translator.app"` once.
 
 ### Set it up (two minutes)
@@ -63,7 +65,7 @@ Requires **macOS 14 Sonoma or later** and an API key from [OpenRouter](https://o
 
    The same works in Brave, Edge, Arc, Vivaldi and other Chromium browsers.
 
-**3. WhatsApp Desktop.** Settings → **Connections** → **Allow…** next to *Accessibility*, and turn VoiceNote Translator on. The first time you translate there, macOS asks whether the app may read another app's data: choose **Allow**.
+**3. WhatsApp Desktop.** Settings → **Connections** → **Allow…** next to *1. Accessibility*, then next to *2. Full Disk Access*. Each opens the right page in System Settings with a small guide beside it: switch VoiceNote Translator on, or, if it isn't listed, drag the app icon from the guide into the list (no **+** button or file browsing needed). The guide closes and Settings turns green by itself once it's on. If macOS offers to **Quit & Reopen** the app after Full Disk Access, click it.
 
 <p align="center">
   <img src="docs/images/settings-connections.png" width="560" alt="Connections: everything connected">
@@ -102,7 +104,7 @@ You don't hear anything when you click Translate: on WhatsApp Web the note is lo
 | Permission | Why | When |
 |---|---|---|
 | **Accessibility** | To see the open WhatsApp Desktop chat and place the buttons. Read-only. | Only for WhatsApp Desktop |
-| **Access to other apps' data** | To read the voice note files WhatsApp Desktop already saved. Read-only. | Asked the first time you translate in WhatsApp Desktop |
+| **Full Disk Access** | To read the voice note files WhatsApp Desktop already saved. Read-only. | Only for WhatsApp Desktop |
 | **Login item** | To be running when you open WhatsApp. | On by default; Settings → General |
 | Browser extension: `nativeMessaging`, `web.whatsapp.com` | To talk to the app and add buttons to WhatsApp Web. No other sites, no network access. | When you install the extension |
 
@@ -141,7 +143,7 @@ With the defaults on OpenRouter, a one-minute voice note costs a fraction of a c
 
 **WhatsApp Desktop shows no buttons.** Settings → Connections must show Accessibility *Allowed*. If System Settings shows it switched on but the app disagrees, the entry belongs to an older build: remove it with **−** and allow again.
 
-**"WhatsApp data: Blocked by macOS".** Click **Check Again** and choose Allow when macOS asks. If it doesn't ask, add the app under Privacy & Security → Full Disk Access.
+**Full Disk Access stays off.** Click **Allow…** next to it in Settings → Connections and follow the guide. If VoiceNote Translator is listed and switched on but Settings still disagrees, the entry belongs to a copy in another folder (for example Downloads): remove it with **−**, then drag the icon from the guide into the list.
 
 **"WhatsApp hasn't downloaded this voice note yet".** Play it once in WhatsApp Desktop, then translate.
 

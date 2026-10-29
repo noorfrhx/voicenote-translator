@@ -2,6 +2,20 @@
 
 All notable changes to this project are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.1.1] - 2026-10-30
+
+### Fixed
+- Translate buttons now appear when WhatsApp, WhatsApp Web or macOS is set to a language other than English (German, Arabic, French, …).
+- WhatsApp Desktop finds the voice note's audio on 12-hour clocks ("6:27 PM").
+- The API key field in Settings → Translation is visible and has a hint inside.
+
+### Added
+- Opened from the disk image or Downloads, the app offers to move itself into Applications and reopens from there, so browsers and macOS permissions always find the right copy.
+- A permission guide beside System Settings for Accessibility and Full Disk Access: switch the app on, or drag its icon into the list. It closes by itself once the permission is on.
+
+### Changed
+- Settings → Connections lists the two WhatsApp Desktop permissions as numbered steps and updates by itself; the menu bar shows when Full Disk Access is missing.
+
 ## [1.1.0] - 2026-10-29
 
 ### Added

@@ -16,6 +16,10 @@
     '[data-icon="audio-play"]',
     '[data-icon="ptt-play"]',
   ].join(",");
+  // Those labels are translated, and WhatsApp dropped the icons, so in other
+  // languages a voice note is found by its player instead: a waveform slider
+  // reading "0:00/0:06", with the play button just before it.
+  const SLIDER = '[role="slider"][aria-valuetext]';
   const states = new Map(); // message id -> { status, data, error, open, step }
   const waiting = new Map(); // audio capture id -> { resolve, reject }
   const requests = new Map(); // app request id -> { onProgress, resolve, reject }
@@ -105,9 +109,29 @@
     return document.querySelector(`[data-id="${CSS.escape(msgId)}"]`);
   }
 
+  function sliderButton(slider) {
+    if (!/\d:\d\d\s*\/\s*\d+:\d\d/.test(slider.getAttribute("aria-valuetext")) || !slider.querySelector("canvas")) return null;
+    for (let n = slider.parentElement, i = 0; n && i < 6 && !n.matches("[data-id]"); n = n.parentElement, i++) {
+      const b = n.querySelector("button");
+      if (b) return b;
+    }
+    return null;
+  }
+
+  // Every voice note's play button inside `root`.
+  function playButtons(root) {
+    const found = new Set(root.querySelectorAll(`[data-id] :is(${PLAY_SELECTORS})`));
+    for (const s of root.querySelectorAll(`[data-id] ${SLIDER}`)) {
+      const b = sliderButton(s);
+      if (b && ![...found].some((f) => f.closest("[data-id]") === b.closest("[data-id]"))) found.add(b);
+    }
+    return found;
+  }
+
   function playButtonIn(msgId) {
     const root = messageEl(msgId);
-    return root && root.querySelector(PLAY_SELECTORS);
+    if (!root) return null;
+    return root.querySelector(PLAY_SELECTORS) || [...root.querySelectorAll(SLIDER)].map(sliderButton).find(Boolean) || null;
   }
 
   function chatName() {
@@ -267,7 +291,7 @@
   let queued = false;
   function scan() {
     queued = false;
-    document.querySelectorAll(`[data-id] :is(${PLAY_SELECTORS})`).forEach(decorate);
+    playButtons(document).forEach(decorate);
   }
   new MutationObserver(() => {
     if (!queued) { queued = true; requestAnimationFrame(scan); }

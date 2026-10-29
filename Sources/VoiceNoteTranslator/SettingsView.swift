@@ -99,7 +99,13 @@ struct TranslationTab: View {
         Form {
             Section("API key") {
                 HStack {
-                    SecureField(current.source == .keychain ? "•••••••• (saved)" : "Paste your API key", text: $keyDraft)
+                    // A visible box with a hint inside: in a grouped form a plain
+                    // field has no border, so it looked like a label with nothing to click.
+                    SecureField("API key", text: $keyDraft,
+                                prompt: Text(current.source == .keychain ? "Saved. Paste a new key to replace it" : "Paste your OpenRouter key (sk-or-…)"))
+                        .textFieldStyle(.roundedBorder)
+                        .labelsHidden()
+                        .onSubmit { if !keyDraft.trimmingCharacters(in: .whitespaces).isEmpty { settings.saveKey(keyDraft); keyDraft = ""; testState = .idle } }
                     Button("Save") { settings.saveKey(keyDraft); keyDraft = ""; testState = .idle }
                         .disabled(keyDraft.trimmingCharacters(in: .whitespaces).isEmpty)
                     if current.source == .keychain {
@@ -166,7 +172,7 @@ struct ConnectionsTab: View {
     @ObservedObject var bridge = BrowserBridge.shared
     @ObservedObject var overlay = DesktopOverlay.shared
     @ObservedObject var settings = AppSettings.shared
-    @State private var dataAccess: Bool?
+    @ObservedObject var permissions = Permissions.shared
     @State private var tick = 0
     private let refresh = Timer.publish(every: 2, on: .main, in: .common).autoconnect()
 
@@ -205,52 +211,38 @@ struct ConnectionsTab: View {
                     Button("Register Again") { bridge.registerNativeHost() }
                         .help("Rewrites the connector files for every installed Chromium browser.")
                 }
+                if let err = BrowserBridge.locationProblem { Text(err).foregroundStyle(.red) }
                 if let err = bridge.listenError { Text(err).foregroundStyle(.red) }
             }
 
             Section("WhatsApp Desktop") {
-                LabeledContent("Accessibility") {
+                LabeledContent {
                     if overlay.accessibilityTrusted {
                         Label("Allowed", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
                     } else {
-                        Button("Allow…") { overlay.requestAccessibility() }
+                        Button("Allow…") { PermissionGuide.shared.start(.accessibility) }
                     }
+                } label: {
+                    Text("1. Accessibility")
+                    Text("Finds the voice messages in the open chat").font(.caption)
                 }
-                LabeledContent("WhatsApp data") {
-                    HStack {
-                        switch dataAccess {
-                        case .some(true): Label("Readable", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
-                        case .some(false): Label("Blocked by macOS", systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange)
-                        case .none: ProgressView().controlSize(.small)
-                        }
-                        Button("Check Again") { checkData() }
+                LabeledContent {
+                    switch permissions.whatsAppData {
+                    case .some(true): Label("Allowed", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+                    case .some(false): Button("Allow…") { PermissionGuide.shared.start(.fullDiskAccess) }
+                    case .none: ProgressView().controlSize(.small)
                     }
+                } label: {
+                    Text("2. Full Disk Access")
+                    Text("Reads the voice note files WhatsApp keeps on this Mac").font(.caption)
                 }
-                if dataAccess == false {
-                    HStack(alignment: .top) {
-                        Text("Click Check Again and choose Allow if macOS asks about accessing another app's data. If it doesn't ask, add VoiceNote Translator under Privacy & Security → Full Disk Access (it only ever reads WhatsApp's voice notes).")
-                            .font(.caption).foregroundStyle(.secondary)
-                        Spacer()
-                        Button("Open Privacy Settings") {
-                            NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles")!)
-                        }
-                    }
-                }
-                Text("Reads the open chat through Accessibility and the voice note files through WhatsApp's local database, both read-only. WhatsApp itself is never modified.")
+                Text("Allow… opens the right page in System Settings with a small guide beside it: switch \(VNT.appName) on, or drag its icon into the list. This page updates by itself. Both are read-only; WhatsApp itself is never changed.")
                     .font(.caption).foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
         .onReceive(refresh) { _ in overlay.refreshPermission(); tick += 1 }
-        .onAppear { checkData() }
-    }
-
-    private func checkData() {
-        dataAccess = nil
-        Task.detached {
-            let ok = WhatsAppDB.canRead()
-            await MainActor.run { dataAccess = ok }
-        }
+        .onAppear { permissions.checkData() }
     }
 
     private func color(_ l: ConnectionStatus.Level) -> Color {

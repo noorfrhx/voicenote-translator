@@ -51,15 +51,16 @@ final class DesktopOverlay: ObservableObject {
 
     /// macOS has no notification for this; Settings and the menu call it when they open.
     func refreshPermission() {
-        accessibilityTrusted = AXIsProcessTrusted()
+        let now = AXIsProcessTrusted()
+        if now != accessibilityTrusted {
+            accessibilityTrusted = now
+            // Just allowed while WhatsApp is open: start without waiting for it to be clicked.
+            if now { frontAppChanged(NSWorkspace.shared.frontmostApplication) }
+        }
     }
 
     func requestAccessibility() {
-        let opts = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
-        accessibilityTrusted = AXIsProcessTrustedWithOptions(opts)
-        if !accessibilityTrusted {
-            NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
-        }
+        PermissionGuide.shared.start(.accessibility)
     }
 
     private func frontAppChanged(_ app: NSRunningApplication?) {

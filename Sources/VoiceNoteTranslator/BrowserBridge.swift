@@ -42,6 +42,15 @@ final class BrowserBridge: ObservableObject {
 
     // MARK: Native host registration
 
+    /// Opened from the disk image, or from Downloads before being moved, macOS
+    /// runs the app from a temporary copy. The connector then points at a path
+    /// that soon disappears, and the browser reports the app as not installed.
+    static var locationProblem: String? {
+        let path = Bundle.main.bundleURL.path
+        guard path.contains("/AppTranslocation/") || path.hasPrefix("/Volumes/") else { return nil }
+        return "VoiceNote Translator is running from the disk image or a temporary copy, so browsers can't find it. Quit it, drag it into Applications, and open it from there."
+    }
+
     /// Chromium browsers look for host manifests in their own folder. Write one into
     /// every browser that's installed, pointing at `vnt-host` inside this app bundle.
     func registerNativeHost() {

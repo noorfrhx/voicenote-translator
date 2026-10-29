@@ -156,12 +156,59 @@ func parseBubble(label raw: String, frame: CGRect) -> Bubble? {
                   hour: hm[0], minute: hm[1], month: month, day: day)
 }
 
+/// Digits in any script ("١٨:٢٧") as ASCII ones, so labels in every language read the same.
+func asciiDigits(_ s: String) -> String {
+    String(s.map { c in
+        guard c.isNumber, let v = c.wholeNumberValue, (0...9).contains(v) else { return c }
+        return Character(String(v))
+    })
+}
+
+/// Whether a label's hour is this note's hour, on a 24- or 12-hour clock ("18:27" or "6:27 PM").
+func sameHour(_ labelHour: Int, _ hour: Int) -> Bool {
+    labelHour == hour || (labelHour <= 12 && labelHour % 12 == hour % 12)
+}
+
+private let timePattern = try! NSRegularExpression(pattern: "(?<!\\d)(\\d{1,2})[:.](\\d{2})(?!\\d)")
+private let numberPattern = try! NSRegularExpression(pattern: "\\d+")
+
+/// Reads a bubble whose label isn't in English. WhatsApp words it in the
+/// person's language ("Sprachnachricht von Louis, Dauer: 16 Sekunden, 18:20"),
+/// but the length and the time are still numbers. So this looks for a voice
+/// note in the open chat whose minute and length both appear in the label.
+func parseLocalizedBubble(label raw: String, frame: CGRect, notes: [VoiceNote]) -> Bubble? {
+    guard !notes.isEmpty else { return nil }
+    let label = asciiDigits(cleanLabel(raw)) as NSString
+    let cal = Calendar.current
+    for t in timePattern.matches(in: label as String, range: NSRange(location: 0, length: label.length)) {
+        guard let h = Int(label.substring(with: t.range(at: 1))), let m = Int(label.substring(with: t.range(at: 2))), m < 60 else { continue }
+        let before = label.substring(to: t.range.location)
+        let numbers = Set(numberPattern.matches(in: before, range: NSRange(location: 0, length: (before as NSString).length))
+            .compactMap { Int((before as NSString).substring(with: $0.range)) })
+        guard !numbers.isEmpty else { continue }
+        for n in notes {
+            let c = cal.dateComponents([.month, .day, .hour, .minute], from: n.date)
+            guard c.minute == m, let hour = c.hour, sameHour(h, hour) else { continue }
+            // The label rounds the length; allow a second either way.
+            let d = Int(n.duration.rounded())
+            let named = (d - 1...d + 1).contains { len in
+                let parts = [len / 3600, len % 3600 / 60, len % 60].filter { $0 > 0 }
+                return !parts.isEmpty && parts.allSatisfy(numbers.contains)
+            }
+            guard named else { continue }
+            return Bubble(label: label as String, frame: frame, fromMe: n.fromMe, duration: d,
+                          hour: hour, minute: m, month: c.month, day: c.day)
+        }
+    }
+    return nil
+}
+
 /// Picks the database row for a bubble: same sender side, same minute, length within a second.
 func match(_ b: Bubble, in notes: [VoiceNote]) -> VoiceNote? {
     let cal = Calendar.current
     return notes.first { n in
         let c = cal.dateComponents([.month, .day, .hour, .minute], from: n.date)
-        return n.fromMe == b.fromMe && c.hour == b.hour && c.minute == b.minute
+        return n.fromMe == b.fromMe && c.hour.map { sameHour(b.hour, $0) } == true && c.minute == b.minute
             && abs(Int(n.duration.rounded()) - b.duration) <= 1
             && (b.month == nil || (c.month == b.month && c.day == b.day))
     }
@@ -180,6 +227,7 @@ final class WhatsAppReader {
     private var header: AXUIElement?
     private var table: AXUIElement?
     private var lastSearch = Date.distantPast
+    private var notesCache: (chat: String, at: Date, notes: [VoiceNote])?
     private(set) var dirty = true
     private(set) var snapshot: ChatSnapshot?
 
@@ -229,6 +277,14 @@ final class WhatsAppReader {
         header = AX.find(window, id: "NavigationBar_HeaderViewButton")
         table = AX.find(window, id: "ChatMessagesTableView")
         return header != nil && table != nil
+    }
+
+    /// The open chat's voice notes, for labels in other languages; re-read every few seconds at most.
+    private func localizedNotes(_ chat: String) -> [VoiceNote] {
+        if let c = notesCache, c.chat == chat, Date().timeIntervalSince(c.at) < 3 { return c.notes }
+        let n = WhatsAppDB.voiceNotes(chatName: chat)
+        notesCache = (chat, Date(), n)
+        return n
     }
 
     enum Change: Equatable {
@@ -283,12 +339,26 @@ final class WhatsAppReader {
         guard findElements(), let header, let table else { snapshot = nil; return nil }
         let area = AX.frame(table)
         guard !area.isEmpty else { invalidate(refind: true); snapshot = nil; return nil }
+        let chatName = cleanLabel(AX.string(header, kAXDescriptionAttribute))
         var all: [Bubble] = []
+        var english = false
+        var other: [(label: String, row: AXUIElement)] = []
         let rows = AX.children(table)
         for row in rows {
             let label = AX.string(row, kAXDescriptionAttribute)
-            guard label.contains("Duration"), let b = parseBubble(label: label, frame: AX.frame(row)) else { continue }
-            all.append(b)
+            if label.contains("Duration") {
+                english = true
+                if let b = parseBubble(label: label, frame: AX.frame(row)) { all.append(b) }
+            } else if label.contains(where: \.isNumber) {
+                other.append((label, row))
+            }
+        }
+        // WhatsApp isn't in English: recognise voice notes from its database instead.
+        if !english, !other.isEmpty {
+            let notes = localizedNotes(chatName)
+            for o in other {
+                if let b = parseLocalizedBubble(label: o.label, frame: AX.frame(o.row), notes: notes) { all.append(b) }
+            }
         }
         // Follow a row from the middle of the list: the ones at the edges are
         // the first to be recycled while scrolling.
@@ -296,7 +366,7 @@ final class WhatsAppReader {
         anchor = mid.flatMap { r in AX.position(r).map { (r, $0) } }
         rowCount = rows.count
         rowsChanged = false
-        snapshot = ChatSnapshot(chatName: cleanLabel(AX.string(header, kAXDescriptionAttribute)), visibleArea: area,
+        snapshot = ChatSnapshot(chatName: chatName, visibleArea: area,
                                 bubbles: all.filter { Self.isVisible($0.frame, in: area) }, allBubbles: all)
         return snapshot
     }

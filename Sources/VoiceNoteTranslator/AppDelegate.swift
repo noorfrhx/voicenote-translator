@@ -47,6 +47,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
             exit(0)
         }
 
+        AppMover.moveIfNeeded()
+
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         statusItem.button?.toolTip = VNT.appName
         let menu = NSMenu()
@@ -56,6 +58,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
 
         BrowserBridge.shared.start()
         DesktopOverlay.shared.start()
+        if WhatsAppDesktop.isInstalled { Permissions.shared.checkData() }
         Updater.shared.start()
 
         // Keep the menu bar icon in step with the connection state.
@@ -249,6 +252,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
             try? rep.representation(using: .png, properties: [:])?.write(to: folder.appendingPathComponent("settings-\(tab.rawValue).png"))
         }
 
+        // The permission guide that sits beside System Settings.
+        for (name, kind) in [("accessibility", PermissionGuide.Kind.accessibility), ("full-disk-access", .fullDiskAccess)] {
+            PermissionGuide.shared.preview(kind)
+            let view = NSHostingView(rootView: PermissionGuideView(guide: PermissionGuide.shared))
+            let window = NSWindow(contentRect: NSRect(origin: .zero, size: view.fittingSize), styleMask: [.titled], backing: .buffered, defer: false)
+            window.backgroundColor = .windowBackgroundColor
+            window.contentView = view
+            snapshot(window, to: folder.appendingPathComponent("guide-\(name).png"))
+        }
+
         // The WhatsApp Desktop overlay: the result popup and each button state.
         // Fictional sample text. VNT_DEMO=<file.json> renders more: [{ "name", "text", "transcript", "language" }].
         let sample = Translation(transcript: "Hey! Ich schaffe es heute nicht vor acht. Kannst du die Schlüssel beim Nachbarn lassen? Danke dir!",
@@ -315,7 +328,9 @@ struct ConnectionStatus: Identifiable {
         var out: [ConnectionStatus] = []
 
         let conns = BrowserBridge.shared.connections
-        if conns.isEmpty {
+        if BrowserBridge.locationProblem != nil {
+            out.append(.init(id: "browser", title: "Browser extension", detail: "Move the app to Applications", level: .warning))
+        } else if conns.isEmpty {
             out.append(.init(id: "browser", title: "Browser extension", detail: "Not connected", level: .warning))
         } else {
             let names = Array(Set(conns.map(\.browser))).sorted().joined(separator: ", ")
@@ -329,6 +344,8 @@ struct ConnectionStatus: Identifiable {
             out.append(.init(id: "desktop", title: "WhatsApp Desktop", detail: "Not installed", level: .off))
         } else if !overlay.accessibilityTrusted {
             out.append(.init(id: "desktop", title: "WhatsApp Desktop", detail: "Needs Accessibility permission", level: .warning))
+        } else if Permissions.shared.whatsAppData == false {
+            out.append(.init(id: "desktop", title: "WhatsApp Desktop", detail: "Needs Full Disk Access", level: .warning))
         } else {
             out.append(.init(id: "desktop", title: "WhatsApp Desktop", detail: overlay.whatsAppRunning ? "Ready" : "Ready (WhatsApp not open)", level: .ok))
         }

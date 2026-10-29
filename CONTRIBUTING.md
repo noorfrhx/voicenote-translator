@@ -9,15 +9,15 @@ make install   # build for this Mac, install into /Applications
 make test
 ```
 
-Load `extension/` unpacked in Chrome (`chrome://extensions` → Developer mode → Load unpacked). After changing the extension, click its reload button and refresh WhatsApp Web. After changing the app, run `make install` again; it quits and replaces the running copy.
+Load `extension/` unpacked in Chrome (`chrome://extensions` → Developer mode → Load unpacked). After changing the extension, click its reload button and refresh WhatsApp Web. After changing the app, run `make install` again; it quits and replaces the running copy. Release builds only run from Applications and offer to move themselves there; pass `--any-location` to run one from somewhere else (debug builds never ask).
 
 ## When WhatsApp changes
 
 Most breakage comes from WhatsApp updating its UI:
 
-- **WhatsApp Web buttons missing:** update `PLAY_SELECTORS` in `extension/content.js`.
+- **WhatsApp Web buttons missing:** update `PLAY_SELECTORS` in `extension/content.js`. Those labels are English only; other languages are found through the voice player's waveform slider (`SLIDER`), so check that too.
 - **WhatsApp Web audio not captured:** see the three capture paths in `extension/page-hook.js`.
-- **WhatsApp Desktop buttons missing:** the bubble labels are parsed by `parseBubble` in `Sources/VoiceNoteTranslator/WhatsAppDesktop.swift`. The accessibility identifiers used are `NavigationBar_HeaderViewButton` and `ChatMessagesTableView`.
+- **WhatsApp Desktop buttons missing:** the bubble labels are parsed by `parseBubble` (English) and `parseLocalizedBubble` (every other language, matched against WhatsApp's database) in `Sources/VoiceNoteTranslator/WhatsAppDesktop.swift`. The accessibility identifiers used are `NavigationBar_HeaderViewButton` and `ChatMessagesTableView`.
 - **WhatsApp Desktop audio not found:** the database query is in `WhatsAppDB.voiceNotes`.
 
 Please include the WhatsApp version and macOS version in bug reports.
