@@ -9,7 +9,7 @@ install:        ## Build for this Mac and install into /Applications
 test:           ## Run unit tests
 	swift test
 
-package:        ## Make the DMG and zips in dist/
+package:        ## Make the DMG in dist/ (notarized when SIGN_IDENTITY and NOTARY_PROFILE are set)
 	scripts/package.sh
 
 icons:          ## Redraw the app and extension icons

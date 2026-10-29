@@ -169,7 +169,7 @@ make install    # build for this Mac and install into /Applications
 | `make install` | Build for this Mac, install into `/Applications`, replace the running copy |
 | `make app` | Universal (Apple silicon + Intel) build into `build/` |
 | `make test` | Unit tests |
-| `make package` | `dist/`: disk image, app zip, extension zip, checksums |
+| `make package` | `dist/`: the disk image and its checksum |
 | `make release` | Package and publish a GitHub release for `VERSION` |
 | `make icons` | Redraw the app and extension icons |
 

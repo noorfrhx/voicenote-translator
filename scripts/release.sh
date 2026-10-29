@@ -20,4 +20,4 @@ scripts/package.sh
 git tag -a "$TAG" -m "VoiceNote Translator $VERSION" 2>/dev/null || true
 git push origin "$TAG"
 gh release create "$TAG" ${DRAFT[@]} --title "VoiceNote Translator $VERSION" --notes-file "$NOTES" \
-  dist/*.dmg dist/*.zip dist/SHA256SUMS.txt
+  dist/*.dmg dist/SHA256SUMS.txt

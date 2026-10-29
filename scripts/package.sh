@@ -1,8 +1,6 @@
 #!/bin/zsh
 # Makes the release files in dist/:
-#   VoiceNote-Translator-<version>.dmg              drag-and-drop installer
-#   VoiceNote-Translator-<version>-mac.zip          the app, zipped
-#   VoiceNote-Translator-Connector-<version>.zip    the browser extension
+#   VoiceNote-Translator-<version>.dmg   drag-and-drop installer (the app includes the browser extension)
 #   SHA256SUMS.txt
 #
 # With SIGN_IDENTITY ("Developer ID Application: …") and NOTARY_PROFILE (a
@@ -17,23 +15,25 @@ scripts/build-app.sh
 mkdir -p dist
 rm -f dist/*
 
-notarize() {
-  [[ -n ${NOTARY_PROFILE:-} && ${SIGN_IDENTITY:-} == "Developer ID Application"* ]] || return 0
-  echo "▸ Notarizing $1"
-  xcrun notarytool submit "$1" --keychain-profile "$NOTARY_PROFILE" --wait
-}
+notarizing() { [[ -n ${NOTARY_PROFILE:-} && ${SIGN_IDENTITY:-} == "Developer ID Application"* ]]; }
 
-APP_ZIP="dist/VoiceNote-Translator-$VERSION-mac.zip"
-ditto -c -k --keepParent "build/$NAME.app" "$APP_ZIP"
-if notarize "$APP_ZIP" && [[ -n ${NOTARY_PROFILE:-} ]]; then
+# Notarize the app itself first, so the copy inside the disk image carries its
+# own ticket and opens offline too. Apple takes a zip for that; it isn't kept.
+if notarizing; then
+  echo "▸ Notarizing the app"
+  ditto -c -k --keepParent "build/$NAME.app" build/notarize.zip
+  xcrun notarytool submit build/notarize.zip --keychain-profile "$NOTARY_PROFILE" --wait
+  rm build/notarize.zip
   xcrun stapler staple "build/$NAME.app"
-  rm "$APP_ZIP"
-  ditto -c -k --keepParent "build/$NAME.app" "$APP_ZIP"
 fi
 
 DMG="dist/VoiceNote-Translator-$VERSION.dmg"
 scripts/make-dmg.sh "$DMG"
-notarize "$DMG" && [[ -n ${NOTARY_PROFILE:-} ]] && xcrun stapler staple "$DMG" || true
 
-(cd extension && zip -qr "../dist/VoiceNote-Translator-Connector-$VERSION.zip" . -x '.DS_Store')
-(cd dist && shasum -a 256 *.dmg *.zip > SHA256SUMS.txt && cat SHA256SUMS.txt)
+if notarizing; then
+  echo "▸ Notarizing the disk image"
+  xcrun notarytool submit "$DMG" --keychain-profile "$NOTARY_PROFILE" --wait
+  xcrun stapler staple "$DMG"
+fi
+
+(cd dist && shasum -a 256 *.dmg > SHA256SUMS.txt && cat SHA256SUMS.txt)
