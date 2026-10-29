@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "VoiceNote Translator Connector",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Connects WhatsApp Web to the VoiceNote Translator Mac app to transcribe and translate voice messages.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA5FMnn3NQyGUZsEZ0AI3gISgJLa8DFvfg+0gdbjItqFa8N9ANsVVTlLI6r/Y8ki4cxAyO74fozHH4hg1X9sH9sDeUxY1ag606pttFnIpf10k9Ot3mdetLEoOpRGUTbl4IUb1PkeUEAtPKa8eTMAb9Lr4Qty/pHF95hRnp1xe+nFdMP9ZEY9p6SSjFEk1MCqgMc/qOaDGOdV7X80Dqe2pp5Le2F5faHg7UI40+TfPt/Jf58A/cgORk1MqMvZuGAeGc8Rd1+ZuBaVnmFqM8EnZmFwdcGpohhoOYmdYP9R0JFNt+ZJASGvBIxlLpwEZzFNqRtYDP80yOyHuhAfQZDD3KcQIDAQAB",
   "icons": {

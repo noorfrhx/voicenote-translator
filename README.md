@@ -75,7 +75,7 @@ When the menu bar icon shows three green dots (browser extension, WhatsApp Deskt
 | Where | What to do |
 |---|---|
 | **WhatsApp Web** | Click **Translate** under a voice message. The translation appears under it, with **Copy** and **Original**. Click the <img src="docs/images/overlay-button-done.png" height="16" alt="icon"> icon to hide or show it again. |
-| **WhatsApp Desktop** | Click **Translate** beside a voice bubble. The translation opens in a small panel with **Copy**, **Original** and **Close**. |
+| **WhatsApp Desktop** | Click **Translate** beside a voice bubble. The translation opens in a small panel with **Copy**, **Original** and **Close**. Keyboard: **Esc** closes, **⌘C** copies, **Tab** shows the original. |
 | **Menu bar** | See what's connected, switch the target language, turn the WhatsApp Desktop buttons on or off, open recent translations. |
 | **Settings → History** | Search everything you've translated, copy the translation or the original, delete entries. |
 
