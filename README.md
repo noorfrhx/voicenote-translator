@@ -25,7 +25,7 @@ Someone sends you a two-minute voice note in a language you don't speak. Click *
   <img src="docs/images/demo.gif" width="760" alt="Clicking Translate next to a German voice message shows the English translation">
 </p>
 
-<p align="center"><a href="docs/launch/VoiceNote-Translator-16x9.mp4"><b>▶ Watch the 1-minute video</b></a></p>
+https://github.com/user-attachments/assets/ec3cc1db-75c8-4574-be52-4e109e49af9e
 
 ## Features
 
