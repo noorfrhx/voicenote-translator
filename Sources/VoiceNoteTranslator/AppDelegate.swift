@@ -250,9 +250,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         }
 
         // The WhatsApp Desktop overlay: the result popup and each button state.
-        let sample = Translation(transcript: "Hallo Bruder, ich kann es nicht nachvollziehen, was er da meint.",
-                                 text: "Hey brother, I can't make sense of what he means. The tire pressure was low anyway, and we fixed that. With the right pressure the suspension feels a bit firmer, but that's how it should be.",
+        // Fictional sample text. VNT_DEMO=<file.json> renders more: [{ "name", "text", "transcript", "language" }].
+        let sample = Translation(transcript: "Hey! Ich schaffe es heute nicht vor acht. Kannst du die Schlüssel beim Nachbarn lassen? Danke dir!",
+                                 text: "Hey! I won't make it before eight today. Could you leave the keys with the neighbour? Thank you!",
                                  language: "German")
+        if let path = ProcessInfo.processInfo.environment["VNT_DEMO"],
+           let data = FileManager.default.contents(atPath: path),
+           let demos = try? JSONSerialization.jsonObject(with: data) as? [[String: String]] {
+            for d in demos {
+                let t = Translation(transcript: d["transcript"] ?? "", text: d["text"] ?? "", language: d["language"] ?? "")
+                let p = ResultPanel()
+                p.show(t, at: NSPoint(x: 200, y: 600))
+                snapshot(p.panel, to: folder.appendingPathComponent("popup-\(d["name"] ?? "demo").png"))
+                p.toggleOriginal()
+                snapshot(p.panel, to: folder.appendingPathComponent("popup-\(d["name"] ?? "demo")-original.png"))
+                p.panel.orderOut(nil)
+            }
+        }
         let result = ResultPanel()
         result.show(sample, at: NSPoint(x: 200, y: 600))
         snapshot(result.panel, to: folder.appendingPathComponent("overlay-result.png"))

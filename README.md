@@ -22,10 +22,10 @@
 Someone sends you a two-minute voice note in a language you don't speak. Click **Translate** next to it, and a few seconds later you read what they said, in clear English (or any language you pick), with the original transcript one click away.
 
 <p align="center">
-  <img src="docs/images/overlay-button.png" height="26" alt="Translate button">
-  &nbsp;→&nbsp;
-  <img src="docs/images/overlay-result.png" width="380" alt="A translated voice message">
+  <img src="docs/images/demo.gif" width="760" alt="Clicking Translate next to a German voice message shows the English translation">
 </p>
+
+<p align="center"><a href="docs/launch/VoiceNote-Translator-16x9.mp4"><b>▶ Watch the 1-minute video</b></a></p>
 
 ## Features
 
@@ -89,18 +89,7 @@ You don't hear anything when you click Translate: on WhatsApp Web the note is lo
 
 ## How it works
 
-```
-┌──────────────── WhatsApp Web ────────────────┐      ┌── WhatsApp Desktop ──┐
-│ Translate button → extension (connector only)│      │  Translate button    │
-└───────────────────────┬──────────────────────┘      └──────────┬───────────┘
-          Chrome native messaging (vnt-host)                     │ Accessibility (read-only)
-                        ▼                                        ▼
-            ┌──────────────── VoiceNote Translator.app ────────────────┐
-            │ menu bar · settings · history · Keychain · cache          │
-            └────────────────────────────┬─────────────────────────────┘
-                                         ▼
-                 speech-to-text + translation (OpenRouter or OpenAI-compatible)
-```
+<p align="center"><img src="docs/images/how-it-works.png" width="760" alt="WhatsApp Web goes through the browser extension and native messaging, WhatsApp for Mac through read-only Accessibility, both to the VoiceNote Translator app, which sends audio to your model"></p>
 
 **WhatsApp Web.** The extension catches the voice note's audio at the moment WhatsApp decodes it for playback, so nothing is downloaded twice. It hands the audio to the app through Chrome's [native messaging](https://developer.chrome.com/docs/extensions/develop/concepts/native-messaging): Chrome starts `vnt-host` (inside the app bundle), which relays messages to the app over a private Unix socket. Only this extension's ID may connect. The connector stays up while the app restarts and reconnects on its own. Message format: [docs/PROTOCOL.md](docs/PROTOCOL.md).
 
@@ -191,7 +180,7 @@ Open `Package.swift` in Xcode to work on the app.
 | `Tests/` | Unit tests |
 | `extension/` | The browser extension (Manifest V3), a thin connector |
 | `scripts/` | Build, disk image, packaging, release and icon scripts |
-| `docs/` | Protocol, release notes, images |
+| `docs/` | Protocol, release notes, images, [launch kit](docs/launch/) (videos, Product Hunt gallery and copy) |
 
 ### Publishing the extension to the Chrome Web Store
 
