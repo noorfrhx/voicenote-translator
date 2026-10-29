@@ -49,7 +49,7 @@ Requires **macOS 14 Sonoma or later** and an API key from [OpenRouter](https://o
 
 3. Open VoiceNote Translator from Applications. A waveform icon appears in the menu bar and Settings opens.
 
-> **"Apple could not verify…" on first launch?** Builds that aren't notarized show this once. Right-click the app → **Open** → **Open**, or run `xattr -dr com.apple.quarantine "/Applications/VoiceNote Translator.app"`.
+> **"Apple could not verify…" on first launch?** Builds that aren't notarized show this once. Click **Done**, then open System Settings → Privacy & Security, scroll down and click **Open Anyway** next to VoiceNote Translator (on macOS 14 you can also right-click the app → **Open**). Or run `xattr -dr com.apple.quarantine "/Applications/VoiceNote Translator.app"` once.
 
 ### Set it up (two minutes)
 
