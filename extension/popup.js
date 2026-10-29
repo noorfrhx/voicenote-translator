@@ -17,7 +17,9 @@ function render(s) {
   rows.replaceChildren(
     row("Mac app", s.connected ? `Connected${s.appVersion ? `, v${s.appVersion}` : ""}` : "Not connected", s.connected ? "ok" : "warn"),
     row("Translation", s.connected ? (s.ready ? `Ready, into ${s.targetLanguage || "English"}` : "Needs setup") : "–", s.ready ? "ok" : "warn"),
-    row("Extension", `v${chrome.runtime.getManifest().version}`, "ok"),
+    s.extensionUpdate
+      ? row("Extension", `v${chrome.runtime.getManifest().version}, ${s.extensionUpdate} available: reload it in chrome://extensions`, "warn")
+      : row("Extension", `v${chrome.runtime.getManifest().version}`, "ok"),
   );
   problem.hidden = !s.problem || (s.connected && s.ready);
   problem.textContent = s.problem || "";

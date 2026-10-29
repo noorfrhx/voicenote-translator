@@ -29,6 +29,7 @@ final class BrowserBridge: ObservableObject {
     private init() {}
 
     func start() {
+        ExtensionInstaller.refreshInstalledCopy()
         registerNativeHost()
         listen()
         // Tell connected extensions when something they show changes.
@@ -212,7 +213,8 @@ final class BrowserBridge: ObservableObject {
     func statusMessage() -> [String: Any] {
         let problem = AppDelegate.shared?.translationProblem
         var m: [String: Any] = ["type": "status", "appVersion": VNT.version, "ready": problem == nil,
-                                "targetLanguage": AppSettings.shared.targetLanguage]
+                                "targetLanguage": AppSettings.shared.targetLanguage,
+                                "extensionVersion": ExtensionInstaller.bundledVersion ?? ""]
         if let problem { m["problem"] = problem }
         return m
     }

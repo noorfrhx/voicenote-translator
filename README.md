@@ -36,6 +36,7 @@ Someone sends you a two-minute voice note in a language you don't speak. Click *
 - **A real Mac app.** Menu bar icon with live connection status, a Settings window, open at login, a drag-and-drop installer.
 - **Private by design.** Your API key lives in the macOS Keychain. The browser extension never sees it and has no network access at all. No telemetry.
 - **Bring your own model.** [OpenRouter](https://openrouter.ai) by default (Whisper Large V3 Turbo + Claude Haiku 5.5), or any OpenAI-compatible API.
+- **Updates itself.** Checks for new versions daily and installs them in one click (or silently, if you prefer). The browser extension updates along with the app.
 - **Light on resources.** The WhatsApp Desktop buttons cost about 1–2% CPU while WhatsApp is in front, and nothing while it's in the background.
 
 ## Install
@@ -49,7 +50,7 @@ Requires **macOS 14 Sonoma or later** and an API key from [OpenRouter](https://o
 
 3. Open VoiceNote Translator from Applications. A waveform icon appears in the menu bar and Settings opens.
 
-> **"Apple could not verify…" on first launch?** Builds that aren't notarized show this once. Click **Done**, then open System Settings → Privacy & Security, scroll down and click **Open Anyway** next to VoiceNote Translator (on macOS 14 you can also right-click the app → **Open**). Or run `xattr -dr com.apple.quarantine "/Applications/VoiceNote Translator.app"` once.
+> Releases are signed with a Developer ID and notarized by Apple, so they open without warnings. **Built it yourself and see "Apple could not verify…"?** Builds that aren't notarized show this once. Click **Done**, then open System Settings → Privacy & Security, scroll down and click **Open Anyway** next to VoiceNote Translator (on macOS 14 you can also right-click the app → **Open**). Or run `xattr -dr com.apple.quarantine "/Applications/VoiceNote Translator.app"` once.
 
 ### Set it up (two minutes)
 
@@ -76,7 +77,7 @@ When the menu bar icon shows three green dots (browser extension, WhatsApp Deskt
 |---|---|
 | **WhatsApp Web** | Click **Translate** under a voice message. The translation appears under it, with **Copy** and **Original**. Click the <img src="docs/images/overlay-button-done.png" height="16" alt="icon"> icon to hide or show it again. |
 | **WhatsApp Desktop** | Click **Translate** beside a voice bubble. The translation opens in a small panel with **Copy**, **Original** and **Close**. Keyboard: **Esc** closes, **⌘C** copies, **Tab** shows the original. |
-| **Menu bar** | See what's connected, switch the target language, turn the WhatsApp Desktop buttons on or off, open recent translations. |
+| **Menu bar** | See what's connected, switch the target language, turn the WhatsApp Desktop buttons on or off, open recent translations, check for updates. When an update is out, the icon changes to <b>↓</b> and the menu shows **Update to … Available**. |
 | **Settings → History** | Search everything you've translated, copy the translation or the original, delete entries. |
 
 You don't hear anything when you click Translate: on WhatsApp Web the note is loaded silently, and on WhatsApp Desktop the app reads the file WhatsApp already downloaded.
@@ -118,7 +119,8 @@ You don't hear anything when you click Translate: on WhatsApp Web the note is lo
 
 ## Privacy
 
-- Audio and transcripts go **only** to the API you configure. Nothing else leaves your Mac. No analytics, no telemetry, no accounts.
+- Audio and transcripts go **only** to the API you configure. No analytics, no telemetry, no accounts.
+- Once a day the app asks GitHub for this project's update feed (turn it off in Settings → General → Updates). No information about you or your Mac is sent with it.
 - The API key is stored in the macOS Keychain (or read from a key file you choose). The extension never receives it.
 - History is kept in `~/Library/Application Support/VoiceNote Translator/history.json`. Turn off *Remember translations* to keep it in memory only, or clear it in Settings → History.
 - Your provider's own data policy applies to what you send it. OpenRouter lets you restrict providers that train on data in your account settings.
@@ -133,6 +135,8 @@ With the defaults on OpenRouter, a one-minute voice note costs a fraction of a c
 |---|---|---|
 | Translate into | English | Any language name; also in the menu bar |
 | Open at login | On | |
+| Check for updates automatically | On | Once a day |
+| Download and install updates automatically | Off | Otherwise you're asked first |
 | Show Translate buttons in WhatsApp Desktop | On | Also in the menu bar |
 | Remember translations | On | Off keeps history in memory only |
 | API key | – | Keychain. Alternatively a key file (`.env` style, first `*_API_KEY=` line) or `OPENROUTER_API_KEY` / `OPENAI_API_KEY` in the environment |
@@ -175,13 +179,13 @@ make install    # build for this Mac and install into /Applications
 
 Open `Package.swift` in Xcode to work on the app.
 
-**Signing.** `scripts/build-app.sh` signs with `SIGN_IDENTITY` if set, otherwise with your *Apple Development* certificate (free: add your Apple ID in Xcode → Settings → Accounts), otherwise ad-hoc. macOS ties permissions to the signature; ad-hoc signatures change with every build, so you'd re-grant Accessibility after each rebuild. For releases anyone can open without warnings, set `SIGN_IDENTITY="Developer ID Application: …"` and `NOTARY_PROFILE` (from `xcrun notarytool store-credentials`) before `make release`.
+**Signing.** `scripts/build-app.sh` signs with `SIGN_IDENTITY` if set, otherwise with a *Developer ID Application* certificate, otherwise your *Apple Development* certificate (free: add your Apple ID in Xcode → Settings → Accounts), otherwise ad-hoc. macOS ties permissions to the signature; ad-hoc signatures change with every build, so you'd re-grant Accessibility after each rebuild. For releases anyone can open without warnings, set `SIGN_IDENTITY="Developer ID Application: …"` and `NOTARY_PROFILE` (from `xcrun notarytool store-credentials`) before `make release`. Releasing, update feeds and the update key are covered in [docs/RELEASING.md](docs/RELEASING.md).
 
 ### Project layout
 
 | Path | What it is |
 |---|---|
-| `Sources/VoiceNoteTranslator/` | The menu bar app: settings, history, translation, browser bridge, WhatsApp Desktop buttons |
+| `Sources/VoiceNoteTranslator/` | The menu bar app: settings, history, translation, browser bridge, WhatsApp Desktop buttons, updates |
 | `Sources/vnt-host/` | Native messaging host the browser starts; relays to the app and survives app restarts |
 | `Sources/VNTCore/` | Shared constants and message framing |
 | `Tests/` | Unit tests |

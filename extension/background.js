@@ -68,7 +68,9 @@ function onNativeMessage(msg) {
       setStatus({ connected: false, ready: false, problem: msg.problem || "VoiceNote Translator isn't running." });
     } else {
       retryDelay = 3000;
-      setStatus({ connected: true, ready: !!msg.ready, problem: msg.problem || "", appVersion: msg.appVersion, targetLanguage: msg.targetLanguage });
+      setStatus({ connected: true, ready: !!msg.ready, problem: msg.problem || "", appVersion: msg.appVersion,
+                  targetLanguage: msg.targetLanguage, extensionUpdate: newer(msg.extensionVersion, VERSION) ? msg.extensionVersion : "" });
+      if (newer(msg.extensionVersion, VERSION)) selfUpdate(msg.extensionVersion);
     }
   }
   const p = msg.id && pending.get(msg.id);
@@ -76,6 +78,27 @@ function onNativeMessage(msg) {
   // Progress updates keep the request open; everything else finishes it.
   if (msg.type !== "progress") pending.delete(msg.id);
   deliver(msg.id, p, msg);
+}
+
+// The app ships a copy of this extension. After the app updates, it refreshes
+// the folder the extension was installed from (Settings → Connections →
+// Install Extension…), and the extension reloads itself to pick up the new
+// files. Only once per version: when loaded from somewhere else, the files
+// don't change and reloading again wouldn't help.
+function newer(a, b) {
+  if (!a || !b) return false;
+  const pa = a.split(".").map(Number), pb = b.split(".").map(Number);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) > (pb[i] || 0);
+  }
+  return false;
+}
+
+async function selfUpdate(version) {
+  const { reloadedFor } = await chrome.storage.local.get("reloadedFor");
+  if (reloadedFor === version) return;
+  await chrome.storage.local.set({ reloadedFor: version });
+  chrome.runtime.reload();
 }
 
 function deliver(id, p, msg) {

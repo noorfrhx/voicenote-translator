@@ -2,6 +2,15 @@
 
 All notable changes to this project are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.1.0] - 2026-10-29
+
+### Added
+- Automatic updates (Sparkle): daily checks, an "Update Available" item in the menu bar, Check for Updates…, and Settings → General → Updates.
+- The browser extension refreshes itself after app updates when installed from the app.
+
+### Changed
+- Releases are a single notarized disk image plus the update feed.
+
 ## [1.0.1] - 2026-10-29
 
 ### Fixed
@@ -26,5 +35,6 @@ First release.
 - Translation cache and searchable history.
 - Drag-and-drop disk image, build, packaging and release scripts; CI build.
 
-[1.0.1]: https://github.com/noorfrhx/voicenote-translator/releases/tag/v1.0.1
-[1.0.0]: https://github.com/noorfrhx/voicenote-translator/releases/tag/v1.0.0
+[1.1.0]: https://github.com/noorfrhx/voicenote-translator/releases/tag/v1.1.0
+[1.0.1]: https://github.com/noorfrhx/voicenote-translator/tree/v1.0.1
+[1.0.0]: https://github.com/noorfrhx/voicenote-translator/tree/v1.0.0

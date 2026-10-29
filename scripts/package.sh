@@ -1,6 +1,7 @@
 #!/bin/zsh
 # Makes the release files in dist/:
 #   VoiceNote-Translator-<version>.dmg   drag-and-drop installer (the app includes the browser extension)
+#   appcast.xml                          update feed for the app's automatic updates (Sparkle)
 #   SHA256SUMS.txt
 #
 # With SIGN_IDENTITY ("Developer ID Application: …") and NOTARY_PROFILE (a
@@ -34,6 +35,23 @@ if notarizing; then
   echo "▸ Notarizing the disk image"
   xcrun notarytool submit "$DMG" --keychain-profile "$NOTARY_PROFILE" --wait
   xcrun stapler staple "$DMG"
+fi
+
+# The update feed. Each entry is signed with the update key in your Keychain
+# (created with Sparkle's generate_keys --account voicenote-translator); the
+# app only installs updates signed with it. The release notes come from
+# docs/releases/v<version>.md, placed next to the DMG under the same name.
+# SKIP_APPCAST=1 skips this (CI has no update key).
+REPO=$(git remote get-url origin | sed -nE 's#.*github\.com[:/]([^/]+/[^/.]+)(\.git)?$#\1#p')
+if [[ -n $REPO && -z ${SKIP_APPCAST:-} ]]; then
+  echo "▸ Writing update feed"
+  FEED=$(mktemp -d)
+  cp "$DMG" "$FEED/"
+  if [[ -f docs/releases/v$VERSION.md ]]; then cp "docs/releases/v$VERSION.md" "$FEED/VoiceNote-Translator-$VERSION.md"; fi
+  .build/artifacts/sparkle/Sparkle/bin/generate_appcast --account voicenote-translator \
+    --download-url-prefix "https://github.com/$REPO/releases/download/v$VERSION/" \
+    --embed-release-notes -o dist/appcast.xml "$FEED"
+  rm -rf "$FEED"
 fi
 
 (cd dist && shasum -a 256 *.dmg > SHA256SUMS.txt && cat SHA256SUMS.txt)

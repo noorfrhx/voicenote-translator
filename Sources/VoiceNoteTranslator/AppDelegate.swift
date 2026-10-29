@@ -56,6 +56,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
 
         BrowserBridge.shared.start()
         DesktopOverlay.shared.start()
+        Updater.shared.start()
 
         // Keep the menu bar icon in step with the connection state.
         Publishers.MergeMany(
@@ -108,10 +109,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         return nil
     }
 
-    private func updateIcon() {
+    func updateIcon() {
         let busy = TranslationService.shared.activeCount > 0
         let problem = translationProblem != nil
-        let name = problem ? "waveform.badge.exclamationmark" : (busy ? "waveform.circle.fill" : "waveform.badge.mic")
+        let update = Updater.shared.updateAvailable != nil
+        let name = problem ? "waveform.badge.exclamationmark"
+            : busy ? "waveform.circle.fill"
+            : update ? "arrow.down.circle"
+            : "waveform.badge.mic"
         let image = NSImage(systemSymbolName: name, accessibilityDescription: VNT.appName)
             ?? NSImage(systemSymbolName: "waveform", accessibilityDescription: VNT.appName)
         image?.isTemplate = true
@@ -127,6 +132,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         let title = NSMenuItem(title: VNT.appName, action: nil, keyEquivalent: "")
         title.attributedTitle = NSAttributedString(string: VNT.appName, attributes: [.font: NSFont.boldSystemFont(ofSize: 13)])
         menu.addItem(title)
+        if let version = Updater.shared.updateAvailable {
+            let item = NSMenuItem(title: "Update to \(version) Available…", action: #selector(checkForUpdates), keyEquivalent: "")
+            item.target = self
+            item.image = NSImage(systemSymbolName: "arrow.down.circle.fill", accessibilityDescription: nil)
+            menu.addItem(item)
+        }
         for s in ConnectionStatus.all() {
             let item = NSMenuItem(title: "\(s.title): \(s.detail)", action: #selector(openConnections), keyEquivalent: "")
             item.target = self
@@ -162,6 +173,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         addItem(menu, "Recent Translations…", #selector(openHistory))
         addItem(menu, "Settings…", #selector(openGeneral), key: ",")
         addItem(menu, "About \(VNT.appName)", #selector(openAbout))
+        if Updater.shared.isConfigured {
+            let check = NSMenuItem(title: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "")
+            check.target = self
+            check.isEnabled = Updater.shared.canCheck
+            menu.addItem(check)
+        }
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Quit \(VNT.appName)", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
     }
@@ -188,6 +205,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
     @objc private func openConnections() { showSettings(tab: .connections) }
     @objc private func openHistory() { showSettings(tab: .history) }
     @objc private func openAbout() { showSettings(tab: .about) }
+    @objc private func checkForUpdates() { Updater.shared.checkForUpdates() }
 
     // MARK: Settings window
 

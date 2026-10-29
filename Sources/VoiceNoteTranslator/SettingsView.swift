@@ -31,6 +31,7 @@ private let commonLanguages = ["English", "German", "Arabic", "French", "Spanish
 struct GeneralTab: View {
     @ObservedObject var settings = AppSettings.shared
     @ObservedObject var history = TranslationService.shared
+    @ObservedObject var updater = Updater.shared
     @State private var launchAtLogin = LaunchAtLogin.isEnabled
     @State private var loginError: String?
 
@@ -52,6 +53,21 @@ struct GeneralTab: View {
                     }
                 if let loginError { Text(loginError).font(.caption).foregroundStyle(.red) }
                 Toggle("Show Translate buttons in WhatsApp Desktop", isOn: $settings.desktopButtons)
+            }
+            if updater.isConfigured {
+                Section("Updates") {
+                    Toggle("Check for updates automatically", isOn: Binding(
+                        get: { updater.automaticallyChecks }, set: { updater.automaticallyChecks = $0 }))
+                    Toggle("Download and install updates automatically", isOn: Binding(
+                        get: { updater.automaticallyInstalls }, set: { updater.automaticallyInstalls = $0 }))
+                        .disabled(!updater.automaticallyChecks)
+                    HStack {
+                        Text(updater.lastCheck.map { "Last checked \($0.formatted(.relative(presentation: .named)))" } ?? "Not checked yet")
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Button("Check Now") { updater.checkForUpdates() }
+                    }
+                }
             }
             Section {
                 Toggle("Remember translations", isOn: $settings.rememberTranslations)
@@ -249,14 +265,40 @@ enum ExtensionInstaller {
         return FileManager.default.fileExists(atPath: url.appendingPathComponent("manifest.json").path) ? url : nil
     }
 
-    /// Copies the extension somewhere stable (browsers keep pointing at the folder
-    /// you load), shows it in Finder and explains the three clicks needed.
-    static func reveal() {
+    /// Where "Install Extension…" puts the extension. Browsers keep loading
+    /// unpacked extensions from the folder they were loaded from, so this stays put.
+    static var installed: URL { VNT.supportDirectory.appendingPathComponent("Browser Extension", isDirectory: true) }
+
+    /// The version of the extension shipped inside this app.
+    static let bundledVersion: String? = bundled.flatMap(version(at:))
+
+    static func version(at folder: URL) -> String? {
+        guard let data = try? Data(contentsOf: folder.appendingPathComponent("manifest.json")),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+        return json["version"] as? String
+    }
+
+    private static func copyBundled() {
         guard let src = bundled else { return }
-        let dest = VNT.supportDirectory.appendingPathComponent("Browser Extension", isDirectory: true)
         try? FileManager.default.createDirectory(at: VNT.supportDirectory, withIntermediateDirectories: true)
-        try? FileManager.default.removeItem(at: dest)
-        try? FileManager.default.copyItem(at: src, to: dest)
+        try? FileManager.default.removeItem(at: installed)
+        try? FileManager.default.copyItem(at: src, to: installed)
+    }
+
+    /// After an app update, bring the installed extension up to date too. The
+    /// extension notices the newer version and reloads itself.
+    static func refreshInstalledCopy() {
+        guard FileManager.default.fileExists(atPath: installed.path),
+              let newer = bundledVersion, version(at: installed) != newer else { return }
+        copyBundled()
+    }
+
+    /// Copies the extension to its stable folder, shows it in Finder and
+    /// explains the three clicks needed.
+    static func reveal() {
+        guard bundled != nil else { return }
+        copyBundled()
+        let dest = installed
         NSWorkspace.shared.activateFileViewerSelecting([dest])
 
         let alert = NSAlert()

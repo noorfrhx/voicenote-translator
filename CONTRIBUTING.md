@@ -28,3 +28,4 @@ Please include the WhatsApp version and macOS version in bug reports.
 - Keep WhatsApp Desktop access read-only.
 - Watch CPU use when changing the WhatsApp Desktop refresh logic: every accessibility query is answered by WhatsApp itself.
 - Bump `VERSION` and `extension/manifest.json` together; `scripts/build-app.sh` refuses to build when they differ.
+- Releases (signing, notarization, the update feed and its key) are described in [docs/RELEASING.md](docs/RELEASING.md).
