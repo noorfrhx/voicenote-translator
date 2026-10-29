@@ -1,0 +1,53 @@
+.wvt-box { display: block; flex: 1 0 100%; width: 100%; padding: 0 6px 4px; box-sizing: border-box; }
+.wvt-btn {
+  display: inline-block;
+  margin: 6px 0 2px;
+  padding: 3px 10px;
+  border: 1px solid rgba(37, 211, 102, 0.6);
+  border-radius: 12px;
+  background: transparent;
+  color: #1fa855;
+  font: 500 12px/1.4 system-ui, sans-serif;
+  cursor: pointer;
+}
+.wvt-btn:hover { background: rgba(37, 211, 102, 0.1); }
+.wvt-btn.wvt-icon { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 26px; padding: 0; }
+.wvt-btn.wvt-icon svg { width: 15px; height: 15px; }
+.wvt-btn:disabled { opacity: 0.6; cursor: progress; }
+
+.wvt-panel {
+  margin: 6px 0 2px;
+  padding: 8px 10px;
+  max-width: 420px;
+  border-left: 3px solid #25d366;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.04);
+  color: inherit;
+  font: 14px/1.45 system-ui, sans-serif;
+  white-space: pre-wrap;
+  user-select: text;
+}
+.wvt-busy { opacity: 0.7; font-style: italic; }
+.wvt-error { border-left-color: #e5484d; color: #c8373c; }
+.wvt-bar { display: flex; gap: 12px; align-items: center; margin-top: 6px; }
+.wvt-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #1fa855;
+  font: 500 12px system-ui, sans-serif;
+  cursor: pointer;
+}
+.wvt-meta { margin-left: auto; font-size: 11px; opacity: 0.6; }
+.wvt-original {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+  font-size: 13px;
+  opacity: 0.8;
+}
+
+@media (prefers-color-scheme: dark) {
+  .wvt-panel { background: rgba(255, 255, 255, 0.06); }
+  .wvt-original { border-top-color: rgba(255, 255, 255, 0.12); }
+}

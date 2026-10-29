@@ -1,0 +1,36 @@
+name: Build
+
+# Checks that every push and pull request builds and passes tests, and keeps the
+# result as a downloadable artifact. Releases are published from a maintainer's
+# Mac with scripts/release.sh, so they're signed with a real certificate
+# (builds here can only be signed ad-hoc).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Unit tests
+        run: swift test
+
+      - name: Check extension scripts
+        run: for f in extension/*.js; do node --check "$f"; done
+
+      - name: Build app, disk image and zips
+        run: scripts/package.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: voicenote-translator
+          path: dist/*
+          retention-days: 14
